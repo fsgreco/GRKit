@@ -193,6 +193,8 @@ parameters_fill:
     cmp r2, #9
     subhs r2, r2, #0x10
     bhs parameters_store
+    // Sources 2 to 5, the key, contrast, highlight, and shadow, as 0 to 3.
+    sub lr, r2, #2
     // A stored byte is (native - 4) mod 9. Another value is neutral.
     ldrb r2, [r3, r2]
     cmp r2, #8
@@ -200,6 +202,16 @@ parameters_fill:
     cmp r2, #5
     addlo r2, r2, #4
     subhs r2, r2, #5
+    // The tone offsets of a native look (zero for another record) move these
+    // four values, within the native range 0..8.
+    cmp lr, #3
+    bhi parameters_store
+    add lr, r3, lr
+    ldrsb lr, [lr, #(GRKIT_RECORD_TONE_OFFSETS - GRKIT_RECORD_PARAMETERS)]
+    adds r2, r2, lr
+    movmi r2, #0
+    cmp r2, #8
+    movgt r2, #8
 parameters_store:
     strh r2, [r1], #2
     cmp r1, r0

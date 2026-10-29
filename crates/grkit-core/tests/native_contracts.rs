@@ -404,6 +404,72 @@ int main(int argc, char **argv) {
     long_hue[8..12].copy_from_slice(&(effects::SIZE_WITH_LEVELS as u32).to_le_bytes());
     repair_crc(&mut long_hue);
     corpus.push(("8704 bytes without levels".into(), long_hue, Some(false)));
+    // Native look: feature 32, tone offsets at 120, the head of the set at 8084, the
+    // matrices at 8192, and 8704 bytes.
+    let mut native_effect = sample(false);
+    native_effect["native_look"] = native_look_sample();
+    let native = effects::encode(&native_effect, &vec![0; effects::ICON_SIZE]).unwrap();
+    assert_eq!(native.len(), effects::SIZE_WITH_LEVELS);
+    corpus.push(("native look".into(), native.clone(), Some(true)));
+    let native_fields: Vec<(&str, usize, Vec<u8>)> = vec![
+        ("tone offset 9", 121, vec![9]),
+        ("tone offset -9", 123, vec![0xf7]),
+        ("reserved byte after the offsets", 124, vec![1]),
+        (
+            "first bound past 2048",
+            8084,
+            2049_u16.to_le_bytes().to_vec(),
+        ),
+        ("increasing bounds", 8086, 1400_u16.to_le_bytes().to_vec()),
+        ("selector 12", 8120, vec![12]),
+        (
+            "control past 12 bits",
+            8136,
+            0x1000_u16.to_le_bytes().to_vec(),
+        ),
+        ("slope past 9 bits", 8164, 0x200_u16.to_le_bytes().to_vec()),
+        ("gain past 2047", 8180, 2048_u16.to_le_bytes().to_vec()),
+        ("byte after the head", 8188, vec![1]),
+        (
+            "matrix past the register",
+            8192,
+            3000_i16.to_le_bytes().to_vec(),
+        ),
+        (
+            "diagonal past the register",
+            8192,
+            (-2000_i16).to_le_bytes().to_vec(),
+        ),
+        ("byte after the set", 8624, vec![1]),
+        ("last byte", 8703, vec![1]),
+        ("with hue sectors", 84, 40_u32.to_le_bytes().to_vec()),
+        ("with hue levels", 84, 48_u32.to_le_bytes().to_vec()),
+        ("without the feature bit", 84, 0_u32.to_le_bytes().to_vec()),
+        ("smaller size field", 8, 8192_u32.to_le_bytes().to_vec()),
+        ("monochrome", 80, 1_u32.to_le_bytes().to_vec()),
+    ];
+    for (description, offset, bytes) in native_fields {
+        let mut changed = native.clone();
+        changed[offset..offset + bytes.len()].copy_from_slice(&bytes);
+        repair_crc(&mut changed);
+        corpus.push((format!("native look: {description}"), changed, Some(false)));
+    }
+    let mut short_native = native[..effects::SIZE].to_vec();
+    short_native[8..12].copy_from_slice(&(effects::SIZE as u32).to_le_bytes());
+    repair_crc(&mut short_native);
+    corpus.push((
+        "native look in 8192 bytes".into(),
+        short_native,
+        Some(false),
+    ));
+    let mut tone_without = extended.clone();
+    tone_without[120] = 1;
+    repair_crc(&mut tone_without);
+    corpus.push((
+        "tone offset without a native look".into(),
+        tone_without,
+        Some(false),
+    ));
     // Glow is not an effect field.
     let mut glow_effect = sample(false);
     glow_effect["glow"] = json!(1);
@@ -445,11 +511,12 @@ int main(int argc, char **argv) {
         state ^= state << 17;
         state
     };
-    for index in 0..512 {
-        let mut changed = match index % 4 {
+    for index in 0..640 {
+        let mut changed = match index % 5 {
             0 => boundary.clone(),
             1 => mono.clone(),
             2 => selective.clone(),
+            3 => native.clone(),
             _ => extended.clone(),
         };
         let offset = (next() % changed.len() as u64) as usize;
@@ -1069,4 +1136,39 @@ fn modules_hold_no_firmware_detail() {
         }
     }
     assert!(checked >= 3, "Expected the module sources");
+}
+
+/// A native look whose levels scale level 0 by 16 - l over 16, as the GR IV sets do.
+fn native_look_sample() -> Value {
+    use grkit_core::native_look::{NativeLook, BANKS, LEVELS};
+    let levels: [[[i32; 9]; LEVELS]; BANKS] = std::array::from_fn(|bank| {
+        std::array::from_fn(|level| {
+            let gain = 1024 * (16 - level as i32) / 16;
+            let (a, b) = (60 - bank as i32 * 9, -30 + bank as i32 * 4);
+            let mut m = [0; 9];
+            for r in 0..3 {
+                let off = [a * gain / 1024, b * gain / 1024 + i32::from(level == 3)];
+                m[r * 3 + (r + 1) % 3] = off[0];
+                m[r * 3 + (r + 2) % 3] = off[1];
+                m[r * 4] = gain - off[0] - off[1];
+            }
+            m
+        })
+    });
+    NativeLook::from_levels(
+        [-1, 3, 0, -2],
+        [
+            1298, 750, 0, 0, 1448, 843, 0, 0, 1298, 750, 0, 0, 1205, 843, 0, 0,
+        ],
+        [
+            0, 1, 2, 2, 2, 3, 4, 5, 5, 5, 6, 7, 8, 8, 8, 9, 10, 11, 11, 11,
+        ],
+        [
+            32, 328, 328, 328, 293, 800, 1600, 2400, 3200, 32, 1024, 1024, 1024, 1024, 0, 0, 0, 0,
+            0, 640, 1280,
+        ],
+        &levels,
+    )
+    .unwrap()
+    .to_json()
 }

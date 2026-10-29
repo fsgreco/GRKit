@@ -543,11 +543,11 @@ static void write_records(const struct arrays *a, u32 pixels)
         /* The matrix and the curves, which the coefficients hold as the GRF
            does (grkit_core::abi). */
         copy(at(record + GRKIT_RECORD_COEFFICIENTS), profile + GRKIT_GRF_MATRIX, GRKIT_GRF_ICON - GRKIT_GRF_MATRIX);
-        /* Extension: features, then the post matrix, selective color, and the
-           reserved zero bytes. */
+        /* Extension: features, then the post matrix, selective color, the tone
+           offsets of a native look, and the reserved zero bytes. */
         copy(at(record + GRKIT_RECORD_FEATURES), profile + GRKIT_GRF_FEATURES, GRKIT_GRF_FEATURES_SIZE);
         copy(at(record + GRKIT_RECORD_POST), profile + GRKIT_GRF_POST, GRKIT_GRF_MATRIX - GRKIT_GRF_POST);
-        if (get32(profile + GRKIT_GRF_FEATURES) & GRKIT_FEATURE_HUE) multiaxial(record, profile);
+        if (get32(profile + GRKIT_GRF_FEATURES) & (GRKIT_FEATURE_HUE | GRKIT_FEATURE_NATIVE_LOOK)) multiaxial(record, profile);
         /* Neutral Fn adjustments until the loader restores the saved ones. */
         zero(at(record + GRKIT_RECORD_PARAMETERS), 9);
         u32 n = length((const char *)profile + CATALOG_EFFECT_NAME);

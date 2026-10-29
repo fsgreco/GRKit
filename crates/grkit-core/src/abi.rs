@@ -4,7 +4,7 @@
 
 use std::fmt::Write;
 
-use crate::{capabilities, effects, hue, menu_text, selective};
+use crate::{capabilities, effects, hue, menu_text, native_look, selective};
 
 /// A byte range of the private header, of a record, or of a GRF file.
 pub struct Field {
@@ -273,9 +273,13 @@ fields!(RECORD_FIELDS {
     RECORD_POST = 0x704, 18;
     /// Selective color for recorded pictures: i16 cos and sin of the target hue
     /// (Q12), u16 inner and outer tangents toward smaller hue angles, then toward
-    /// larger ones (Q8), and u8 chroma gate c0 and c1. Bytes 0x724..0x72b are
-    /// reserved and zero.
-    RECORD_SELECTIVE = 0x716, 0x72c - 0x716;
+    /// larger ones (Q8), and u8 chroma gate c0 and c1.
+    RECORD_SELECTIVE = 0x716, 14;
+    /// i8 offsets of a native look (feature 32) to the native key, contrast,
+    /// highlight, and shadow values; zero without it.
+    RECORD_TONE_OFFSETS = 0x724, 4;
+    /// Reserved and zero.
+    RECORD_RESERVED = 0x728, 4;
     /// Fn adjustments of the effect: saturation, hue, high/low key, contrast,
     /// highlight contrast, shadow contrast, sharpness, shading, clarity. Each
     /// byte is (native value - 4) mod 9, so zero is neutral. A native value is
@@ -322,8 +326,11 @@ fields!(GRF_FIELDS {
     /// Selective color (feature 2): i16 cos and sin of the target hue, four u16
     /// tangents, and two u8 chroma limits.
     GRF_SELECTIVE = 106, selective::SIZE;
+    /// i8 offsets of a native look (feature 32) to the native key, contrast,
+    /// highlight, and shadow values (`native_look`); zero without it.
+    GRF_TONE_OFFSETS = 120, 4;
     /// Reserved and zero.
-    GRF_RESERVED = 120, 8;
+    GRF_RESERVED = 124, 4;
     /// i16[9] signed Q13 color matrix.
     GRF_MATRIX = 128, 18;
     /// Zero.
@@ -344,6 +351,7 @@ const _: () = assert!(
     RECORD_NAME - RECORD_COEFFICIENTS == GRF_ICON - GRF_MATRIX
         && RECORD_CURVES - RECORD_COEFFICIENTS == GRF_CURVES - GRF_MATRIX
         && RECORD_SELECTIVE - RECORD_POST == GRF_SELECTIVE - GRF_POST
+        && RECORD_TONE_OFFSETS - RECORD_POST == GRF_TONE_OFFSETS - GRF_POST
         && RECORD_PARAMETERS - RECORD_POST == GRF_MATRIX - GRF_POST
 );
 
@@ -554,6 +562,12 @@ fn hue_tables(out: &mut String) {
         effects::FEATURE_HUE_LEVELS
     )
     .unwrap();
+    writeln!(
+        out,
+        "#define GRKIT_FEATURE_NATIVE_LOOK {}U",
+        effects::FEATURE_NATIVE_LOOK
+    )
+    .unwrap();
     writeln!(out, "#define GRKIT_HUE_SIZE {}U", hue::SIZE).unwrap();
     writeln!(out, "#define GRKIT_HUE_MATRICES {}U", hue::SECTORS * 6).unwrap();
     define(
@@ -591,6 +605,26 @@ fn hue_tables(out: &mut String) {
         "HUE_LEVEL_CONTROL_HALVED",
         &hue::LEVEL_CONTROL_HALVED,
     );
+    define(
+        out,
+        "A native look (feature 32, grkit_core::native_look): 16 u16 bounds, 20 u8 \
+         bank selectors, 21 u16 control fields, and 5 u16 level gains from GRKIT_GRF_HUE; \
+         12 x 6 i16 level-0 coefficients and 4 x 12 x 6 i8 corrections of levels 1 to 4 \
+         from GRKIT_GRF_SIZE.",
+        "NATIVE_BOUNDS",
+        format!("{}U", native_look::BOUNDS),
+    );
+    for (name, value) in [
+        ("NATIVE_SELECTORS", native_look::SELECTORS),
+        ("NATIVE_CONTROL", native_look::CONTROL),
+        ("NATIVE_GAINS", native_look::GAINS),
+        ("NATIVE_HEAD_END", native_look::HEAD_END),
+        ("NATIVE_MATRICES", native_look::MATRICES),
+        ("NATIVE_CORRECTIONS", native_look::CORRECTIONS),
+        ("NATIVE_END", native_look::END),
+    ] {
+        writeln!(out, "#define GRKIT_{name} {value}U").unwrap();
+    }
 }
 
 /// The contents of `runtime/abi.h`.

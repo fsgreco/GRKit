@@ -601,3 +601,67 @@ fn overlay_labels_follow_the_aspect_values() {
         );
     }
 }
+
+/// A native look whose level-0 rows hold `a` and `b` off the diagonal.
+fn native_look() -> grkit_core::native_look::NativeLook {
+    use grkit_core::native_look::{NativeLook, BANKS, LEVELS};
+    let levels: [[[i32; 9]; LEVELS]; BANKS] = std::array::from_fn(|bank| {
+        std::array::from_fn(|level| {
+            let gain = 1024 - 64 * level as i32;
+            let (a, b) = (20 + bank as i32, -10);
+            let mut m = [0; 9];
+            for r in 0..3 {
+                let off = [a * gain / 1024, b * gain / 1024];
+                m[r * 3 + (r + 1) % 3] = off[0];
+                m[r * 3 + (r + 2) % 3] = off[1];
+                m[r * 4] = gain - off[0] - off[1];
+            }
+            m
+        })
+    });
+    NativeLook::from_levels(
+        [-1, 3, 0, -2],
+        [
+            1298, 750, 0, 0, 1448, 843, 0, 0, 1298, 750, 0, 0, 1205, 843, 0, 0,
+        ],
+        [
+            0, 1, 2, 2, 2, 3, 4, 5, 5, 5, 6, 7, 8, 8, 8, 9, 10, 11, 11, 11,
+        ],
+        [0; 21],
+        &levels,
+    )
+    .unwrap()
+}
+
+#[test]
+fn native_look_round_trips_in_the_larger_file() {
+    let mut effect = fixture();
+    effect["native_look"] = native_look().to_json();
+    let icon = vec![0; effects::ICON_SIZE];
+    let bytes = effects::encode(&effect, &icon).unwrap();
+    assert_eq!(bytes.len(), effects::SIZE_WITH_LEVELS);
+    assert_eq!(u32::from_le_bytes(bytes[84..88].try_into().unwrap()), 32);
+    // The tone offsets: key, contrast, highlight, shadow.
+    assert_eq!(&bytes[120..124], &[0xff, 3, 0, 0xfe]);
+    let (decoded, _) = effects::decode(&bytes).unwrap();
+    assert_eq!(decoded.native_look, Some(native_look()));
+    assert_eq!(decoded.to_json(), effect);
+    assert_eq!(decoded.encode(&icon).unwrap(), bytes);
+}
+
+#[test]
+fn native_look_excludes_hue_sectors_and_monochrome() {
+    let mut effect = fixture();
+    effect["native_look"] = native_look().to_json();
+    effect["hue_sectors"] = json!({"matrices": vec![vec![0; 6]; 11], "weight": [0, 0, 0, 0]});
+    let icon = vec![0; effects::ICON_SIZE];
+    assert!(effects::encode(&effect, &icon).is_err());
+    let mut mono = fixture();
+    mono["flags"] = json!(1);
+    mono["native_look"] = native_look().to_json();
+    assert!(effects::encode(&mono, &icon).is_err());
+    let mut bad = fixture();
+    bad["native_look"] = native_look().to_json();
+    bad["native_look"]["tone_offsets"]["shadow"] = json!(9);
+    assert!(effects::encode(&bad, &icon).is_err());
+}

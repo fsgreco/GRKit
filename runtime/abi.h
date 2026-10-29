@@ -257,9 +257,13 @@
 #define GRKIT_RECORD_POST 0x704
 /* Selective color for recorded pictures: i16 cos and sin of the target hue
    (Q12), u16 inner and outer tangents toward smaller hue angles, then toward
-   larger ones (Q8), and u8 chroma gate c0 and c1. Bytes 0x724..0x72b are
-   reserved and zero. */
+   larger ones (Q8), and u8 chroma gate c0 and c1. */
 #define GRKIT_RECORD_SELECTIVE 0x716
+/* i8 offsets of a native look (feature 32) to the native key, contrast,
+   highlight, and shadow values; zero without it. */
+#define GRKIT_RECORD_TONE_OFFSETS 0x724
+/* Reserved and zero. */
+#define GRKIT_RECORD_RESERVED 0x728
 /* Fn adjustments of the effect: saturation, hue, high/low key, contrast,
    highlight contrast, shadow contrast, sharpness, shading, clarity. Each byte
    is (native value - 4) mod 9, so zero is neutral. A native value is 0..8, and
@@ -308,9 +312,13 @@
    tangents, and two u8 chroma limits. */
 #define GRKIT_GRF_SELECTIVE 106U
 #define GRKIT_GRF_SELECTIVE_SIZE 14U
+/* i8 offsets of a native look (feature 32) to the native key, contrast,
+   highlight, and shadow values (`native_look`); zero without it. */
+#define GRKIT_GRF_TONE_OFFSETS 120U
+#define GRKIT_GRF_TONE_OFFSETS_SIZE 4U
 /* Reserved and zero. */
-#define GRKIT_GRF_RESERVED 120U
-#define GRKIT_GRF_RESERVED_SIZE 8U
+#define GRKIT_GRF_RESERVED 124U
+#define GRKIT_GRF_RESERVED_SIZE 4U
 /* i16[9] signed Q13 color matrix. */
 #define GRKIT_GRF_MATRIX 128U
 #define GRKIT_GRF_MATRIX_SIZE 18U
@@ -333,6 +341,7 @@
 #define GRKIT_FEATURE_SELECTIVE 2U
 #define GRKIT_FEATURE_HUE 8U
 #define GRKIT_FEATURE_HUE_LEVELS 16U
+#define GRKIT_FEATURE_NATIVE_LOOK 32U
 #define GRKIT_HUE_SIZE 88U
 #define GRKIT_HUE_MATRICES 66U
 /* Hue levels of feature 16: the sectors of levels 1 to 3 after the first
@@ -349,6 +358,18 @@
    highlight correction, which halves the stage's input. */
 #define GRKIT_HUE_LEVEL_CONTROL { 656, 656, 656, 586, 150, 650, 1150, 1650 }
 #define GRKIT_HUE_LEVEL_CONTROL_HALVED { 1312, 1312, 1312, 1172, 75, 325, 575, 825 }
+/* A native look (feature 32, grkit_core::native_look): 16 u16 bounds, 20 u8
+   bank selectors, 21 u16 control fields, and 5 u16 level gains from
+   GRKIT_GRF_HUE; 12 x 6 i16 level-0 coefficients and 4 x 12 x 6 i8 corrections
+   of levels 1 to 4 from GRKIT_GRF_SIZE. */
+#define GRKIT_NATIVE_BOUNDS 8084U
+#define GRKIT_NATIVE_SELECTORS 8116U
+#define GRKIT_NATIVE_CONTROL 8136U
+#define GRKIT_NATIVE_GAINS 8178U
+#define GRKIT_NATIVE_HEAD_END 8188U
+#define GRKIT_NATIVE_MATRICES 8192U
+#define GRKIT_NATIVE_CORRECTIONS 8336U
+#define GRKIT_NATIVE_END 8624U
 /* The plan that SCAN writes: this header, the GRF file of each installed
    effect, then an entry of GRKIT_PLANNED_EFFECT_SIZE bytes for each listed
    effect. */

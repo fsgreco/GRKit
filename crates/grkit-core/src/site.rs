@@ -11,6 +11,7 @@ use std::collections::BTreeSet;
 use crate::cube::{self, Encoding};
 use crate::effects::{self, Effect};
 use crate::fit::{self, Model, Params};
+use crate::native_look::NativeLook;
 use crate::selective::{self, Selective};
 use crate::{hue, packaging, Files};
 
@@ -64,6 +65,7 @@ pub fn params(effect: &Effect) -> Params {
         curves: effect.curves.map(|curve| curve.map(f64::from)),
         post: effect.post_matrix.as_ref().map_or(fit::IDENTITY, unit),
         sectors: effect.hue_sectors.as_ref().map(hue::HueSectors::stage),
+        native: effect.native_look.as_ref().map(NativeLook::stage),
     }
 }
 
