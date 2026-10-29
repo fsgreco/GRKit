@@ -17,6 +17,7 @@ pub mod lut_image;
 pub mod menu_text;
 pub mod modules;
 pub mod native_look;
+pub mod native_tone;
 pub mod packaging;
 pub mod png;
 pub mod runtime;

@@ -5,6 +5,7 @@ pub mod dump;
 pub mod firmware;
 pub mod loader;
 pub mod module;
+pub mod native_look;
 pub mod port;
 pub mod relocation;
 pub mod target;
